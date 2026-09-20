@@ -14,8 +14,8 @@ from telethon.utils import get_peer_id
 # ─────────────────────────────────────────────
 API_ID          = 30322662
 API_HASH        = '820261ca851804a5c11b91cad4afc12f'
-BOT_TOKEN       = '8374546377:AAHMWDPEqse5qy_NbMEWQWFjCYVTWQuwNhs'
-HELPER_USERNAME = 'Reosad_bot'
+BOT_TOKEN       = '8870533936:AAFdjf7PNrhY1bu4Cd-dSeaStyIGk04B1pc'
+HELPER_USERNAME = '@Tkdara_bot'
 
 CHEAT_BOT       = 'Sik_waifu_bot'
 CATCHER_BOT_ID  = 6157455819
@@ -78,8 +78,8 @@ init_db()
 # ─────────────────────────────────────────────
 #  Clients
 # ─────────────────────────────────────────────
-user_client = TelegramClient('cheatbuy_session', API_ID, API_HASH)
-bot_client  = TelegramClient('helper_neo_session', API_ID, API_HASH)
+user_client = TelegramClient('google5', API_ID, API_HASH)
+bot_client  = TelegramClient('helper_tkdara_session', API_ID, API_HASH)
 
 # ─────────────────────────────────────────────
 #  Runtime state
