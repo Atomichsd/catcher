@@ -24,8 +24,8 @@ CATCHER_BOT_ID  = 6157455819
 #  Spawn trigger phrases
 # ─────────────────────────────────────────────
 SPAWN_TEXTS = [
-    "sᴘᴀᴡɴᴇᴅ",                          # character spawn (s = U+0073)
-    "ꜱᴘᴀᴡɴᴇᴅ",                          # gate spawn (ꜱ = U+A731)
+    "sᴘᴀᴡɴᴇᴅ",                     # character spawn (s = U+0073)
+    "ꜱᴘᴀᴡɴᴇᴅ",                     # gate spawn (ꜱ = U+A731)
     "spawned in the chat",                # english spawn
     "A wild character appeared",          # wild bot (english)
     "یه کاراکتر جدید ظاهر شد",           # wild bot (persian)
@@ -106,7 +106,7 @@ def build_main_menu():
         f"❖ Anti-Spam   ›  {antispam_emoji}\n"
         f"❖ Auto React  ›  {'Active' if data['auto_react'] else 'Off'}\n"
         f"❖ Fake Online  ›  {'Active' if data['fake_online'] else 'Off'}\n"
-        f"❖ Delay          ›  {data['delay']}s\n\n"
+        f"❖ Delay        ›  {data['delay']}s\n\n"
         f"🗂 Groups:\n{groups_list}\n"
         "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"
     )
@@ -123,18 +123,21 @@ def build_main_menu():
     online_style = "success" if data["fake_online"] else "danger"
 
     keyboard = [
-        [Button.inline(toggle_label,                  data=b"toggle",          style=toggle_style)],
-        [Button.inline(spam_label,                    data=b"toggle_antispam", style=spam_style)],
-        [Button.inline(react_label,                   data=b"toggle_react",    style=react_style)],
-        [Button.inline(online_label,                  data=b"toggle_online",   style=online_style)],
-        [Button.inline("⚙️ Rarity Settings",           data=b"rarity_catcher",  style="primary")],
-        [Button.inline("📊 Stats",                    data=b"show_stats",      style="primary")],
-        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay",      style="primary")],
+        [Button.inline(toggle_label,                    data=b"toggle",            style=toggle_style)],
+        [Button.inline(spam_label,                      data=b"toggle_antispam",   style=spam_style)],
+        [Button.inline(zig_label if 'zig_label' in locals() else "✅ Auto React: Active" if data['auto_react'] else "❌ Auto React: Off", data=b"toggle_react", style=react_style)],
+        [Button.inline(online_label,                    data=b"toggle_online",     style=online_style)],
+        [Button.inline("⚙️ Rarity Settings",            data=b"rarity_catcher",    style="primary")],
+        [Button.inline("📊 Stats",                      data=b"show_stats",        style="primary")],
+        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay",        style="primary")],
         [
             Button.inline("➕ Add Group",    data=b"add_group",    style="primary"),
             Button.inline("➖ Remove Group", data=b"remove_group", style="primary"),
         ],
     ]
+    # اصلاح جزئی برای دکمه ری‌اکت در صورت وجود اختلاف متغیر
+    keyboard[2] = [Button.inline(react_label, data=b"toggle_react", style=react_style)]
+    
     return text, keyboard
 
 def build_delay_menu():
@@ -435,6 +438,12 @@ async def cheat_bot_reply(event):
         return
 
     catch_cmd = match.group(1).replace('`', '').strip()
+
+    # تبدیل /catch به .catch و کوچک کردن حروف نام کاراکتر
+    catch_cmd = catch_cmd.replace('/catch', '.catch', 1)
+    parts = catch_cmd.split(' ', 1)
+    if len(parts) > 1:
+        catch_cmd = f"{parts[0]} {parts[1].lower()}"
 
     target_chat = latest_spawn_chat_id
     latest_spawn_chat_id = None
