@@ -17,18 +17,18 @@ API_HASH        = '820261ca851804a5c11b91cad4afc12f'
 BOT_TOKEN       = '8870533936:AAFdjf7PNrhY1bu4Cd-dSeaStyIGk04B1pc'
 HELPER_USERNAME = '@Tkdara_bot'
 
-CHEAT_BOT       = 'Sik_waifu_bot'
+CHEAT_BOT       = 'zswaifu_cheat_bot'
 CATCHER_BOT_ID  = 6157455819
 
 # ─────────────────────────────────────────────
 #  Spawn trigger phrases
 # ─────────────────────────────────────────────
 SPAWN_TEXTS = [
-    "sᴘᴀᴡɴᴇᴅ",                     # character spawn (s = U+0073)
-    "ꜱᴘᴀᴡɴᴇᴅ",                     # gate spawn (ꜱ = U+A731)
-    "spawned in the chat",                # english spawn
-    "A wild character appeared",          # wild bot (english)
-    "یه کاراکتر جدید ظاهر شد",           # wild bot (persian)
+    "sᴘᴀᴡɴᴇᴅ",
+    "ꜱᴘᴀᴡɴᴇᴅ",
+    "spawned in the chat",
+    "A wild character appeared",
+    "یه کاراکتر جدید ظاهر شد",
 ]
 
 # ─────────────────────────────────────────────
@@ -50,7 +50,8 @@ DEFAULT_DB = {
     "antispam_count": 0,
     "rarity_catcher": {
         "🔵": True, "🟣": True, "🟠": True, "🟡": True,
-        "💮": True, "⚜️": True, "⚡": True, "🪞": True, "✨": True
+        "💮": True, "⚜️": True, "⚡": True, "🪞": True, "✨": True,
+        "❓": True,
     },
 }
 
@@ -65,6 +66,9 @@ def load_db() -> dict:
         for k, v in DEFAULT_DB.items():
             if k not in data:
                 data[k] = v
+        # اضافه کردن ❓ به db های قدیمی
+        if "❓" not in data.get("rarity_catcher", {}):
+            data["rarity_catcher"]["❓"] = True
         return data
     except Exception:
         return dict(DEFAULT_DB)
@@ -113,31 +117,27 @@ def build_main_menu():
 
     toggle_label = "✅ AutoCatch: Active" if data["is_active"] else "❌ AutoCatch: Off"
     spam_label   = "✅ Anti-Spam: Active" if data["anti_spam"] else "❌ Anti-Spam: Off"
+    react_label  = "✅ Auto React: Active" if data["auto_react"] else "❌ Auto React: Off"
+    online_label = "✅ Fake Type & Online: Active" if data["fake_online"] else "❌ Fake Type & Online: Off"
 
     toggle_style = "success" if data["is_active"] else "danger"
     spam_style   = "success" if data["anti_spam"] else "danger"
-
-    react_label  = "✅ Auto React: Active" if data["auto_react"] else "❌ Auto React: Off"
     react_style  = "success" if data["auto_react"] else "danger"
-    online_label = "✅ Fake Type & Online: Active" if data["fake_online"] else "❌ Fake Type & Online: Off"
     online_style = "success" if data["fake_online"] else "danger"
 
     keyboard = [
-        [Button.inline(toggle_label,                    data=b"toggle",            style=toggle_style)],
-        [Button.inline(spam_label,                      data=b"toggle_antispam",   style=spam_style)],
-        [Button.inline(zig_label if 'zig_label' in locals() else "✅ Auto React: Active" if data['auto_react'] else "❌ Auto React: Off", data=b"toggle_react", style=react_style)],
-        [Button.inline(online_label,                    data=b"toggle_online",     style=online_style)],
-        [Button.inline("⚙️ Rarity Settings",            data=b"rarity_catcher",    style="primary")],
-        [Button.inline("📊 Stats",                      data=b"show_stats",        style="primary")],
-        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay",        style="primary")],
+        [Button.inline(toggle_label,  data=b"toggle",          style=toggle_style)],
+        [Button.inline(spam_label,    data=b"toggle_antispam", style=spam_style)],
+        [Button.inline(react_label,   data=b"toggle_react",    style=react_style)],
+        [Button.inline(online_label,  data=b"toggle_online",   style=online_style)],
+        [Button.inline("⚙️ Rarity Settings", data=b"rarity_catcher", style="primary")],
+        [Button.inline("📊 Stats",           data=b"show_stats",      style="primary")],
+        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay", style="primary")],
         [
             Button.inline("➕ Add Group",    data=b"add_group",    style="primary"),
             Button.inline("➖ Remove Group", data=b"remove_group", style="primary"),
         ],
     ]
-    # اصلاح جزئی برای دکمه ری‌اکت در صورت وجود اختلاف متغیر
-    keyboard[2] = [Button.inline(react_label, data=b"toggle_react", style=react_style)]
-    
     return text, keyboard
 
 def build_delay_menu():
@@ -156,7 +156,7 @@ def build_delay_menu():
     return text, keyboard
 
 # ─────────────────────────────────────────────
-#  Rarity menus (Catcher only)
+#  Rarity menus
 # ─────────────────────────────────────────────
 CATCHER_RARITIES = [
     ("🔵", "Common"),
@@ -168,6 +168,7 @@ CATCHER_RARITIES = [
     ("⚡", "CrossVerse"),
     ("🪞", "Supreme"),
     ("✨", "Cataphract"),
+    ("❓", "Supreme / Cataphract"),
 ]
 
 def build_rarity_menu(temp: dict):
@@ -205,6 +206,45 @@ def build_stats_menu():
         [Button.inline("⬅️ Back", data=b"back_to_main", style="danger")],
     ]
     return text, keyboard
+
+# ─────────────────────────────────────────────
+#  پارس پیام cheat bot جدید
+#  فرمت ورودی:
+#    `/catch@Character_Catcher_Bot koyasu`
+#    ⚡Name: `Koyasu Tsubame`
+# ─────────────────────────────────────────────
+def parse_cheat_reply(raw: str) -> str | None:
+    """
+    پیام چیت بات رو پارس می‌کنه و دستور .catch آماده برمی‌گردونه.
+    اگه پیدا نکرد None برمیگردونه.
+    """
+    # ایگنور کردن پیام "not found"
+    NOT_FOUND_PHRASES = [
+        "I don't recognize this character",
+        "Not Found",
+        "Processing",
+    ]
+    for phrase in NOT_FOUND_PHRASES:
+        if phrase in raw:
+            return None
+
+    # فرمت جدید: `/catch@Character_Catcher_Bot koyasu`
+    match = re.search(r'/catch@\S+\s+(\S+)', raw)
+    if match:
+        char_key = match.group(1).lower()
+        return f".catch {char_key}"
+
+    # فرمت قدیمی fallback: `▲: /catch koyasu`
+    match = re.search(r'▲:\s*(/catch[^\n\r]+)', raw)
+    if match:
+        catch_cmd = match.group(1).replace('`', '').strip()
+        catch_cmd = catch_cmd.replace('/catch', '.catch', 1)
+        parts = catch_cmd.split(' ', 1)
+        if len(parts) > 1:
+            return f"{parts[0]} {parts[1].lower()}"
+        return catch_cmd
+
+    return None
 
 # ─────────────────────────────────────────────
 #  Bot: inline query → show menu
@@ -368,6 +408,17 @@ async def handle_group_replies(event):
     await event.delete()
 
 # ─────────────────────────────────────────────
+#  تشخیص rarity از متن spawn
+# ─────────────────────────────────────────────
+def extract_rarity_emoji(text: str) -> str:
+    """اولین ایموجی rarity رو از متن پیدا می‌کنه"""
+    RARITY_EMOJIS = ["🔵", "🟣", "🟠", "🟡", "💮", "⚜️", "⚡", "🪞", "✨", "❓"]
+    for emoji in RARITY_EMOJIS:
+        if emoji in text:
+            return emoji
+    return ""
+
+# ─────────────────────────────────────────────
 #  User client: detect spawns (Character_Catcher_Bot only)
 # ─────────────────────────────────────────────
 @user_client.on(events.NewMessage(incoming=True))
@@ -395,21 +446,22 @@ async def spawn_detector(event):
     if not text:
         return
 
-    first_char = text.strip()[0] if text.strip() else ""
+    # تشخیص rarity از ایموجی داخل متن
+    rarity_emoji = extract_rarity_emoji(text)
 
     for phrase in SPAWN_TEXTS:
         if phrase in text:
-            if not data.get("rarity_catcher", {}).get(first_char, True):
-                print(f"[SPAWN] ⛔ Rarity {first_char} disabled")
+            if rarity_emoji and not data.get("rarity_catcher", {}).get(rarity_emoji, True):
+                print(f"[SPAWN] ⛔ Rarity {rarity_emoji} disabled")
                 return
 
-            print(f"[SPAWN] ✅ Matched: {phrase!r} → forwarding")
+            print(f"[SPAWN] ✅ Matched: {phrase!r} | rarity={rarity_emoji or 'unknown'} → forwarding")
             latest_spawn_chat_id = event.chat_id
             if data["delay"] > 0:
                 await asyncio.sleep(data["delay"])
             try:
                 await event.forward_to(CHEAT_BOT)
-                print(f"[SPAWN] ✅ Forwarded successfully")
+                print(f"[SPAWN] ✅ Forwarded to {CHEAT_BOT}")
             except Exception as e:
                 print(f"[SPAWN] ❌ Forward failed: {e}")
             return
@@ -425,25 +477,15 @@ async def cheat_bot_reply(event):
         return
 
     chat = await event.get_chat()
-    if not chat or getattr(chat, 'username', '').lower() != CHEAT_BOT.lower():
+    if not chat or getattr(chat, 'username', '').lower().lstrip('@') != CHEAT_BOT.lower().lstrip('@'):
         return
 
     raw = event.raw_text
 
-    if any(kw in raw for kw in ("❌", "Not Found", "Processing", "recognize")):
+    catch_cmd = parse_cheat_reply(raw)
+    if catch_cmd is None:
+        print(f"[CATCH] ⛔ Ignored cheat bot reply: {raw[:60]!r}")
         return
-
-    match = re.search(r'▲:\s*(/catch[^\n\r]+)', raw)
-    if not match:
-        return
-
-    catch_cmd = match.group(1).replace('`', '').strip()
-
-    # تبدیل /catch به .catch و کوچک کردن حروف نام کاراکتر
-    catch_cmd = catch_cmd.replace('/catch', '.catch', 1)
-    parts = catch_cmd.split(' ', 1)
-    if len(parts) > 1:
-        catch_cmd = f"{parts[0]} {parts[1].lower()}"
 
     target_chat = latest_spawn_chat_id
     latest_spawn_chat_id = None
@@ -451,7 +493,7 @@ async def cheat_bot_reply(event):
     data = load_db()
     data["total_catches"] = data.get("total_catches", 0) + 1
     save_db(data)
-    print(f"[CATCH] Sending command to {target_chat}: {catch_cmd}")
+    print(f"[CATCH] Sending to {target_chat}: {catch_cmd}")
 
     if data.get("fake_online"):
         try:
@@ -473,7 +515,7 @@ async def cheat_bot_reply(event):
                 ))
                 print(f"[REACT] 🦄 Reacted to message {msg_id}")
             except Exception as e:
-                print(f"[REACT] Reaction failed or not allowed: {e}")
+                print(f"[REACT] Reaction failed: {e}")
 
         asyncio.create_task(delayed_reaction(target_chat, sent.id))
 
