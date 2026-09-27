@@ -21,6 +21,17 @@ CHEAT_BOT       = 'Sik_waifu_bot'
 CATCHER_BOT_ID  = 6157455819
 
 # ─────────────────────────────────────────────
+#  Invisible character cleaner
+# ─────────────────────────────────────────────
+INVISIBLE_CHARS = re.compile(
+    r'[\u200b\u200c\u200d\u2060\u2061\u2062\u2063\u2064'
+    r'\ufeff\u00ad\u180e\u00a0\u202f\u205f\u3000]'
+)
+
+def clean_text(text: str) -> str:
+    return INVISIBLE_CHARS.sub('', text)
+
+# ─────────────────────────────────────────────
 #  Spawn trigger phrases
 # ─────────────────────────────────────────────
 SPAWN_TEXTS = [
@@ -368,10 +379,6 @@ async def handle_group_replies(event):
 async def spawn_detector(event):
     global latest_spawn_chat_id, cooldown_until
 
-    # دیباگ: همه پیام‌های catcher bot رو لاگ کن
-    if event.sender_id == CATCHER_BOT_ID:
-        print(f"[DEBUG] Catcher msg in chat {event.chat_id}: {repr(event.message.message[:80])}")
-
     if event.is_private or event.fwd_from is not None:
         return
 
@@ -381,7 +388,6 @@ async def spawn_detector(event):
     data = load_db()
 
     if not data["is_active"]:
-        print(f"[DEBUG] Skipped: is_active=False")
         return
 
     if data["anti_spam"] and time.time() < cooldown_until:
@@ -390,14 +396,16 @@ async def spawn_detector(event):
 
     cid = str(event.chat_id)
     if cid not in data["groups"]:
-        print(f"[DEBUG] Skipped: chat {cid} not in groups {list(data['groups'].keys())}")
         return
 
-    text = event.message.message if event.message else ""
-    if not text:
+    raw_text = event.message.message if event.message else ""
+    if not raw_text:
         return
 
-    # پیدا کردن rarity emoji از داخل متن
+    # حذف کاراکترهای نامرئی که بات برای anti-bot اضافه کرده
+    text = clean_text(raw_text)
+
+    # پیدا کردن rarity emoji
     rarity_cfg = data.get("rarity_catcher", {})
     found_emoji = None
     for emoji in rarity_cfg.keys():
@@ -405,17 +413,14 @@ async def spawn_detector(event):
             found_emoji = emoji
             break
 
-    print(f"[DEBUG] Text received, found_emoji={found_emoji}")
-
     for phrase in SPAWN_TEXTS:
         if phrase in text:
-            print(f"[DEBUG] Phrase matched: {phrase!r}")
+            print(f"[SPAWN] ✅ Detected! Rarity={found_emoji}, phrase={phrase!r}")
 
             if found_emoji and not rarity_cfg.get(found_emoji, True):
-                print(f"[SPAWN] ⛔ Rarity {found_emoji} disabled")
+                print(f"[SPAWN] ⛔ Rarity {found_emoji} is disabled, skipping")
                 return
 
-            print(f"[SPAWN] ✅ Forwarding to {CHEAT_BOT}...")
             latest_spawn_chat_id = event.chat_id
 
             if data["delay"] > 0:
@@ -423,12 +428,10 @@ async def spawn_detector(event):
 
             try:
                 await event.forward_to(CHEAT_BOT)
-                print(f"[SPAWN] ✅ Forwarded successfully")
+                print(f"[SPAWN] ✅ Forwarded to {CHEAT_BOT}")
             except Exception as e:
                 print(f"[SPAWN] ❌ Forward failed: {e}")
             return
-
-    print(f"[DEBUG] No spawn phrase matched in text")
 
 # ─────────────────────────────────────────────
 #  User client: receive answer from cheat bot
