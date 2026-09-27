@@ -24,9 +24,9 @@ CATCHER_BOT_ID  = 6157455819
 #  Spawn trigger phrases
 # ─────────────────────────────────────────────
 SPAWN_TEXTS = [
-    "sᴘᴀᴡɴᴇᴅ",                     # character spawn (s = U+0073)
-    "ꜱᴘᴀᴡɴᴇᴅ",                     # gate spawn (ꜱ = U+A731)
-    "spawned in the chat",                # english spawn
+    "ʜᴀs sᴘᴀᴡɴᴇᴅ ɪɴ ᴛʜᴇ ᴄʜᴀᴛ",
+    "ꜱᴘᴀᴡɴᴇᴅ",
+    "spawned in the chat",
 ]
 
 # ─────────────────────────────────────────────
@@ -111,31 +111,27 @@ def build_main_menu():
 
     toggle_label = "✅ AutoCatch: Active" if data["is_active"] else "❌ AutoCatch: Off"
     spam_label   = "✅ Anti-Spam: Active" if data["anti_spam"] else "❌ Anti-Spam: Off"
+    react_label  = "✅ Auto React: Active" if data["auto_react"] else "❌ Auto React: Off"
+    online_label = "✅ Fake Type & Online: Active" if data["fake_online"] else "❌ Fake Type & Online: Off"
 
     toggle_style = "success" if data["is_active"] else "danger"
     spam_style   = "success" if data["anti_spam"] else "danger"
-
-    react_label  = "✅ Auto React: Active" if data["auto_react"] else "❌ Auto React: Off"
     react_style  = "success" if data["auto_react"] else "danger"
-    online_label = "✅ Fake Type & Online: Active" if data["fake_online"] else "❌ Fake Type & Online: Off"
     online_style = "success" if data["fake_online"] else "danger"
 
     keyboard = [
-        [Button.inline(toggle_label,                    data=b"toggle",            style=toggle_style)],
-        [Button.inline(spam_label,                      data=b"toggle_antispam",   style=spam_style)],
-        [Button.inline(zig_label if 'zig_label' in locals() else "✅ Auto React: Active" if data['auto_react'] else "❌ Auto React: Off", data=b"toggle_react", style=react_style)],
-        [Button.inline(online_label,                    data=b"toggle_online",     style=online_style)],
-        [Button.inline("⚙️ Rarity Settings",            data=b"rarity_catcher",    style="primary")],
-        [Button.inline("📊 Stats",                      data=b"show_stats",        style="primary")],
-        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay",        style="primary")],
+        [Button.inline(toggle_label,  data=b"toggle",          style=toggle_style)],
+        [Button.inline(spam_label,    data=b"toggle_antispam", style=spam_style)],
+        [Button.inline(react_label,   data=b"toggle_react",    style=react_style)],
+        [Button.inline(online_label,  data=b"toggle_online",   style=online_style)],
+        [Button.inline("⚙️ Rarity Settings", data=b"rarity_catcher", style="primary")],
+        [Button.inline("📊 Stats",           data=b"show_stats",      style="primary")],
+        [Button.inline(f"⏱ Delay: {data['delay']}s", data=b"menu_delay", style="primary")],
         [
             Button.inline("➕ Add Group",    data=b"add_group",    style="primary"),
             Button.inline("➖ Remove Group", data=b"remove_group", style="primary"),
         ],
     ]
-    # اصلاح جزئی برای دکمه ری‌اکت در صورت وجود اختلاف متغیر
-    keyboard[2] = [Button.inline(react_label, data=b"toggle_react", style=react_style)]
-    
     return text, keyboard
 
 def build_delay_menu():
@@ -154,7 +150,7 @@ def build_delay_menu():
     return text, keyboard
 
 # ─────────────────────────────────────────────
-#  Rarity menus (Catcher only)
+#  Rarity menus
 # ─────────────────────────────────────────────
 CATCHER_RARITIES = [
     ("🔵", "Common"),
@@ -366,11 +362,15 @@ async def handle_group_replies(event):
     await event.delete()
 
 # ─────────────────────────────────────────────
-#  User client: detect spawns (Character_Catcher_Bot only)
+#  User client: detect spawns
 # ─────────────────────────────────────────────
 @user_client.on(events.NewMessage(incoming=True))
 async def spawn_detector(event):
     global latest_spawn_chat_id, cooldown_until
+
+    # دیباگ: همه پیام‌های catcher bot رو لاگ کن
+    if event.sender_id == CATCHER_BOT_ID:
+        print(f"[DEBUG] Catcher msg in chat {event.chat_id}: {repr(event.message.message[:80])}")
 
     if event.is_private or event.fwd_from is not None:
         return
@@ -381,36 +381,54 @@ async def spawn_detector(event):
     data = load_db()
 
     if not data["is_active"]:
+        print(f"[DEBUG] Skipped: is_active=False")
         return
+
     if data["anti_spam"] and time.time() < cooldown_until:
+        print(f"[DEBUG] Skipped: cooldown active")
         return
 
     cid = str(event.chat_id)
     if cid not in data["groups"]:
+        print(f"[DEBUG] Skipped: chat {cid} not in groups {list(data['groups'].keys())}")
         return
 
     text = event.message.message if event.message else ""
     if not text:
         return
 
-    first_char = text.strip()[0] if text.strip() else ""
+    # پیدا کردن rarity emoji از داخل متن
+    rarity_cfg = data.get("rarity_catcher", {})
+    found_emoji = None
+    for emoji in rarity_cfg.keys():
+        if emoji in text:
+            found_emoji = emoji
+            break
+
+    print(f"[DEBUG] Text received, found_emoji={found_emoji}")
 
     for phrase in SPAWN_TEXTS:
         if phrase in text:
-            if not data.get("rarity_catcher", {}).get(first_char, True):
-                print(f"[SPAWN] ⛔ Rarity {first_char} disabled")
+            print(f"[DEBUG] Phrase matched: {phrase!r}")
+
+            if found_emoji and not rarity_cfg.get(found_emoji, True):
+                print(f"[SPAWN] ⛔ Rarity {found_emoji} disabled")
                 return
 
-            print(f"[SPAWN] ✅ Matched: {phrase!r} → forwarding")
+            print(f"[SPAWN] ✅ Forwarding to {CHEAT_BOT}...")
             latest_spawn_chat_id = event.chat_id
+
             if data["delay"] > 0:
                 await asyncio.sleep(data["delay"])
+
             try:
                 await event.forward_to(CHEAT_BOT)
                 print(f"[SPAWN] ✅ Forwarded successfully")
             except Exception as e:
                 print(f"[SPAWN] ❌ Forward failed: {e}")
             return
+
+    print(f"[DEBUG] No spawn phrase matched in text")
 
 # ─────────────────────────────────────────────
 #  User client: receive answer from cheat bot
@@ -436,8 +454,6 @@ async def cheat_bot_reply(event):
         return
 
     catch_cmd = match.group(1).replace('`', '').strip()
-
-    # تبدیل /catch به .catch و کوچک کردن حروف نام کاراکتر
     catch_cmd = catch_cmd.replace('/catch', '.catch', 1)
     parts = catch_cmd.split(' ', 1)
     if len(parts) > 1:
@@ -449,7 +465,7 @@ async def cheat_bot_reply(event):
     data = load_db()
     data["total_catches"] = data.get("total_catches", 0) + 1
     save_db(data)
-    print(f"[CATCH] Sending command to {target_chat}: {catch_cmd}")
+    print(f"[CATCH] Sending: {catch_cmd} → chat {target_chat}")
 
     if data.get("fake_online"):
         try:
@@ -471,7 +487,7 @@ async def cheat_bot_reply(event):
                 ))
                 print(f"[REACT] 🦄 Reacted to message {msg_id}")
             except Exception as e:
-                print(f"[REACT] Reaction failed or not allowed: {e}")
+                print(f"[REACT] Reaction failed: {e}")
 
         asyncio.create_task(delayed_reaction(target_chat, sent.id))
 
