@@ -4,6 +4,16 @@ import asyncio
 import time
 import re
 import pathlib
+
+# ─────────────────────────────────────────────
+#  TgCrypto — speeds up MTProto encryption
+# ─────────────────────────────────────────────
+try:
+    import tgcrypto  # noqa: F401
+    print("[CRYPTO] ✅ TgCrypto is active — encryption accelerated")
+except ImportError:
+    print("[CRYPTO] ⚠️  TgCrypto not found. Run: pip install tgcrypto")
+
 from telethon import TelegramClient, events, Button
 from telethon.tl import functions, types
 from telethon.errors import MessageNotModifiedError
@@ -68,14 +78,23 @@ def save_db(data: dict):
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
+# ─── DB cache (از دیسک فقط وقتی فایل تغییر کرده میخونه) ───
+_db_cache: dict = {}
+_db_mtime: float = 0.0
+
 def load_db() -> dict:
+    global _db_cache, _db_mtime
     try:
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        for k, v in DEFAULT_DB.items():
-            if k not in data:
-                data[k] = v
-        return data
+        mtime = os.path.getmtime(DB_FILE)
+        if mtime != _db_mtime:
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for k, v in DEFAULT_DB.items():
+                if k not in data:
+                    data[k] = v
+            _db_cache = data
+            _db_mtime = mtime
+        return dict(_db_cache)
     except Exception:
         return dict(DEFAULT_DB)
 
@@ -88,8 +107,18 @@ init_db()
 # ─────────────────────────────────────────────
 #  Clients
 # ─────────────────────────────────────────────
-user_client = TelegramClient('siki', API_ID, API_HASH)
-bot_client  = TelegramClient('helper_tkdara_session', API_ID, API_HASH)
+user_client = TelegramClient(
+    'siki', API_ID, API_HASH,
+    connection_retries=5,
+    retry_delay=1,
+    flood_sleep_threshold=60,
+)
+bot_client = TelegramClient(
+    'helper_tkdara_session', API_ID, API_HASH,
+    connection_retries=5,
+    retry_delay=1,
+    flood_sleep_threshold=60,
+)
 
 # ─────────────────────────────────────────────
 #  Runtime state
@@ -473,8 +502,10 @@ async def cheat_bot_reply(event):
 
     if data.get("fake_online"):
         try:
-            async with user_client.action(target_chat, "typing"):
-                await asyncio.sleep(1.0)
+            await user_client(functions.messages.SetTypingRequest(
+                peer=target_chat,
+                action=types.SendMessageTypingAction()
+            ))
         except Exception:
             pass
 
